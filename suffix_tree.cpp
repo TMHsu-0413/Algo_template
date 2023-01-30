@@ -1,3 +1,9 @@
+/*
+ Suffix Tree - Ukkonen's algorithm
+
+
+ build by TM Hsu 2023/01/31
+*/
 #include <bits/stdc++.h>
 using namespace std;
 
