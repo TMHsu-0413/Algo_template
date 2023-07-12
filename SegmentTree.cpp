@@ -1,138 +1,164 @@
-/*
-Segment Tree with lazy propogation (single & range update,query)
+#include <bits/stdc++.h>
+using namespace std;
+using ll = long long;
+ /*
 
-design for cses range update queries problem
+Segment Tree with lazy propogation (range add, update, query)
 
-2023/2/21 by TMHsu
+design for cses Range Updates and Sums problem
+
+https://cses.fi/problemset/task/1735/
+
+2023/7/13 by TMHsu
 
 */
-#include <bits/stdc++.h>
-
-using namespace std;
-
-using ll = long long;
-class SegNode{
+class SegNode {
 public:
-    int lx,rx;     // range
-    SegNode* left;
-    SegNode* right;
-    ll sum;        // range sum 
-    bool lazy_tag; // 
-    ll lazy_val;   // 
-    
-    SegNode(int l,int r,vector<ll>& arr){ // build Segment Tree with arr[l:r]
-        lazy_tag = false;
-        lazy_val = 0;
-        left = nullptr;
-        right = nullptr;
-        lx = l;
-        rx = r;
-        
-        if (l == r){
-            sum = arr[l];
-            return;
-        }
-        int mid = (l+r) / 2;
-        
-        left = new SegNode(l,mid,arr);
-        right = new SegNode(mid+1,r,arr);
-        sum = left->sum + right->sum;
-        return;
+  ll lx, rx;
+  SegNode *left, *right;
+
+  // lazy1 -> for update range, lazy2 -> for add range
+  ll lazy1 = 0,lazy2 = 0, sum = 0;
+  SegNode(vector<ll> &v, int l, int r) {
+    lx = l;
+    rx = r;
+    if (l == r) {
+      sum = v[l];
+      return;
     }
-    void pushDown(){
-        if (lazy_tag && left) {
-            left->sum += lazy_val * (left->rx - left->lx + 1);
-            right->sum += lazy_val * (right->rx - right->lx + 1);
-            
-            left->lazy_tag = true; left->lazy_val += lazy_val;
-            right->lazy_tag = true; right->lazy_val += lazy_val;
-            
-            lazy_tag = false;
-            lazy_val = 0;
-        }
+ 
+    int mid = (l + r) / 2;
+    left = new SegNode(v, l, mid);
+    right = new SegNode(v, mid + 1, r);
+ 
+    sum = left->sum + right->sum;
+  }
+
+  // push lazy tag
+  void pushDown() {
+    if (lazy1 > 0 && left) {
+      left->sum = lazy1 * (left->rx - left->lx + 1);
+      right->sum = lazy1 * (right->rx - right->lx + 1);
+ 
+      left->lazy1 = lazy1;
+      right->lazy1 = lazy1;
+
+      left->sum += lazy2 * (left->rx - left->lx + 1);
+      right->sum += lazy2 * (right->rx - right->lx + 1);
+ 
+      left->lazy2 = lazy2;
+      right->lazy2 = lazy2;
+ 
+      lazy1 = 0;
+      lazy2 = 0;
     }
 
-    // add idx by val
-    void single_update(int idx,int val){
-        if (lx == idx && rx == idx){
-            sum += val;
-            return;
-        }
-        
-        int mid = lx + (rx-lx) / 2;
-        
-        if (idx <= mid)
-            left->single_update(idx,val);
-        else 
-            right->single_update(idx,val);
+    else if (lazy2 > 0 && left) {
+      left->sum += lazy2 * (left->rx - left->lx + 1);
+      right->sum += lazy2 * (right->rx - right->lx + 1);
+ 
+      left->lazy2 += lazy2;
+      right->lazy2 += lazy2;
+ 
+      lazy2 = 0;
+    }
+  }
+ 
+ // increase range [l,r] by valToAdd 
+  void AddRange(int l, int r, int valToAdd) {
+    if (rx < l || lx > r)
+      return;
+ 
+    if (l <= lx && rx <= r) {
+      sum += (valToAdd * (rx - lx + 1));
+      lazy2 += valToAdd;
+      return;
+    }
+ 
+    int mid = (lx + rx) / 2;
+    pushDown();
+ 
+    if (r <= mid)
+      left->AddRange(l, r, valToAdd);
+    else if (l > mid)
+      right->AddRange(l, r, valToAdd);
+    else {
+      left->AddRange(l, mid, valToAdd);
+      right->AddRange(mid + 1, r, valToAdd);
+    }
+ 
+    sum = left->sum + right->sum;
+  }
 
-        if (left) {
-            pushDown();
-            sum = left->sum + right->sum;
-        }
-        return;
+  // update range [l,r] to valToUpdate
+  void updateRange(int l, int r, int valToUpdate) {
+    if (rx < l || lx > r)
+      return;
+ 
+    if (l <= lx && rx <= r) {
+      sum = (valToUpdate * (rx - lx + 1));
+      lazy1 = valToUpdate;
+      lazy2 = 0;
+      return;
     }
-    
-    // add range [l,r] by val
-    void range_update(int l,int r,int val){
-        if (rx < l || lx > r) // not covered by [lx,rx] at all
-            return;
-        
-        if (l <= lx && rx <= r){ // totally covered by [lx,rx]
-            sum += val * (rx-lx+1);
-            lazy_tag = true;
-            lazy_val += val;
-            return;
-        }
-        
-        if (left){ // not leaf node
-            pushDown();
-            left->range_update(l,r,val);
-            right->range_update(l,r,val);
-            sum = left->sum + right->sum;
-        }
+ 
+    int mid = (lx + rx) / 2;
+    pushDown();
+ 
+    if (r <= mid)
+      left->updateRange(l, r, valToUpdate);
+    else if (l > mid)
+      right->updateRange(l, r, valToUpdate);
+    else {
+      left->updateRange(l, mid, valToUpdate);
+      right->updateRange(mid + 1, r, valToUpdate);
     }
-    
-    // return rqnge query [l,r]
-    ll query(int l,int r){
-        if (rx < l || lx > r) // not covered by [lx,rx] at all
-            return 0;
-        if (l <= lx && rx <= r) // totally covered bt [lx,rx]
-            return sum;
+    sum = left->sum + right->sum;
+  }
 
-        if (left){ // not leaf node
-            pushDown();
-            ll ans = left->query(l,r) + right->query(l,r);
-            sum = left->sum + right->sum;
-            return ans;
-        }
-        return sum;
-    }
+  // get [l,r] sum
+  ll query(int l, int r) {
+    if (lx > r || rx < l)
+      return 0;
+    else if (l == lx && r == rx)
+      return sum;
+ 
+    pushDown();
+ 
+    int mid = (lx + rx) / 2;
+    if (r <= mid)
+      return left->query(l, r);
+    else if (l > mid)
+      return right->query(l, r);
+    else
+      return left->query(l, mid) + right->query(mid + 1, r);
+  }
 };
 
-int main(){
-    int a,b;
-    cin>>a>>b;
-    vector<ll> arr(a);
-    for (int i=0;i<a;i++){
-        int c;
-        cin >> c;
-        arr[i] = c;
+// The below code is for cses  
+int main() {
+  ll n, m, a;
+  cin >> n >> m;
+  vector<ll> v(n, 0);
+  for (int i = 0; i < n; i++) {
+    cin >> a;
+    v[i] = a;
+  }
+  SegNode *root = new SegNode(v, 0, n - 1);
+ 
+  for (int i = 0; i < m; i++) {
+    int type;
+    ll a, b, c;
+    cin >> type;
+    if (type == 1) {
+      cin >> a >> b >> c;
+      root->AddRange(a - 1, b - 1, c);
+    } else if (type == 2) {
+      cin >> a >> b >> c;
+      root->updateRange(a - 1, b - 1, c);
+    } else {
+      cin >> a >> b;
+      cout << root->query(a - 1, b - 1) << endl;
     }
-
-    SegNode* root = new SegNode(0,a-1,arr);
-
-    for (int i=0;i<b;i++){
-        int c,d,e,f;
-        cin >> c;
-        if (c == 1){
-            cin >> d >> e >> f;
-            root->range_update(d-1,e-1,f);
-        }
-        else {
-            cin >> d;
-            cout<<root->query(d-1,d-1)<<endl;
-        }
-    }
-    return 0;
+  }
 }
