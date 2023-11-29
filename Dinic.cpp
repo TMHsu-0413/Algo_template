@@ -2,95 +2,110 @@
 
 dinic algorithm (maximum flow)
 
-先用bfs建level graph，再用dfs找路徑去填水流，填的時候只能走跟目前節點level差1的點
-要注意dfs時需用一個used來記錄走了但沒辦法到終點的節點，以防圖有很多種分支導致TLE
+先用bfs建level
+graph，再用dfs找路徑去填水流，填的時候只能走跟目前節點level差1的點
+要注意dfs時需記錄走了但沒辦法到終點的節點，以防圖有很多種分支導致TLE
 
 TC : O(V^2E)
 
+2023/11/29 by TMHsu
 */
 #include <bits/stdc++.h>
-using LL = long long;
 using namespace std;
+using ll = long long;
 
-vector<int> build_lvl_graph(vector<vector<int>> &g,vector<vector<LL>> &flow,int n){
-    queue<int> q;
-    vector<int> level(n+1,-1);
-    q.push(1);
-    level[1] = 1;
-    while (!q.empty()){
-        queue<int> nq;
-        while(!q.empty()){
-            int cur = q.front(); q.pop();
-            for(auto &nxt:g[cur]){
-                if (level[nxt] == -1 && flow[cur][nxt] > 0){
-                    level[nxt] = level[cur] + 1;
-                    nq.push(nxt);
-                }
-            }
-        }
-        q = nq;
+// build level graph
+vector<ll> build(unordered_map<ll, unordered_set<ll>> &g,
+                 vector<vector<ll>> &dis, ll start, ll end) {
+  int n = dis.size();
+  queue<ll> q;
+  q.push(start);
+  vector<ll> level_graph(n + 1, -1);
+  level_graph[start] = 1;
+  while (!q.empty()) {
+    ll cur = q.front();
+    q.pop();
+
+    for (auto &nxt : g[cur]) {
+      if (nxt == start)
+        continue;
+      else if ((dis[cur][nxt] > 0) && (level_graph[nxt] == -1)) {
+        level_graph[nxt] = level_graph[cur] + 1;
+        q.push(nxt);
+      }
     }
-    return level;
+  }
+  return level_graph;
 }
-bool dfs(vector<vector<int>> &g,vector<int> &lvl,vector<vector<LL>> &flow,vector<bool>&used,int n,int cur,LL mn,vector<int> &path,LL &mn_flow){
-    if (used[cur])
-        return false;
-    used[cur] = true;
-    if (cur == n){
-        mn_flow = mn;
+
+// find a valid path from start to end
+bool dfs(unordered_map<ll, unordered_set<ll>> &g, vector<vector<ll>> &dis,
+         ll cur, ll end, vector<ll> &level_graph, vector<ll> &pre) {
+  if (cur == end) {
+    return true;
+  }
+
+  for (auto &nxt : g[cur]) {
+    // 如果這個節點沒有路能到終點，那可以記錄起來，之後再走到這個點就不用再試了
+    // 如果沒有這條，會導致TLE
+    if (pre[nxt] != -1)
+      continue;
+    if ((dis[cur][nxt] > 0) && (level_graph[nxt] - level_graph[cur]) == 1) {
+      pre[nxt] = cur;
+      if (dfs(g, dis, nxt, end, level_graph, pre))
         return true;
     }
-    for(auto &nxt:g[cur]){
-        if (flow[cur][nxt] > 0 && (lvl[nxt] - lvl[cur]) == 1){
-            path.push_back(nxt);
-            if (dfs(g,lvl,flow,used,n,nxt,min(mn,flow[cur][nxt]),path,mn_flow))
-                return true;
-            path.pop_back();
-        }
-    }
-    return false;
-}
-LL dinic(vector<vector<int>> &g,vector<vector<LL>> &flow,int n){
-    LL ans = 0;
-    while (true){
-        vector<int> lvl = build_lvl_graph(g,flow,n);
-        if (lvl[n] == -1)
-            break;
-        else if (lvl[n] != -1){
-            vector<int> path;
-            path.push_back(1);
-            LL mn_flow = 0;
-            vector<bool> used(n+1,false);
-            while (dfs(g,lvl,flow,used,n,1,INT_MAX,path,mn_flow)){
-                for(int i=0; i<path.size()-1; i++){
-                    int cur = path[i],nxt = path[i+1];
-                    flow[cur][nxt] -= mn_flow;
-                    flow[nxt][cur] += mn_flow;
-                }
-                ans += mn_flow;
-                path.clear();
-                path.push_back(1);
-            }
-        }
-    }
-    return ans;
+  }
+  return false;
 }
 
-int main(){
-    int n,m;
-    cin>>n>>m;
-    vector<vector<int>> g(n+1);
-    vector<vector<LL>> flow(n+1,vector<LL>(n+1,0));
-    for(int i=0; i<m; i++){
-        LL a,b,c;
-        cin>>a>>b>>c;
-        if (flow[a][b] == 0){
-            g[a].push_back(b);
-            g[b].push_back(a);
-        }
-        flow[a][b] += c;
-    }
-    LL ans = dinic(g,flow,n);
+// Dinic主要算法
+ll Dinic(unordered_map<ll, unordered_set<ll>> &g, vector<vector<ll>> &dis,
+         ll start, ll end) {
+  int n = dis.size();
+  ll ans = 0;
 
-    cout<<ans<<endl;
+  while (true) {
+    vector<ll> level_graph = build(g, dis, start, end);
+    if (level_graph[end] == -1)
+      break;
+
+    while (true) {
+      vector<ll> pre(n + 1, -1);
+      bool have_path = dfs(g, dis, start, end, level_graph, pre);
+      if (!have_path)
+        break;
+      ll cur = end;
+      ll mn_flow = INT_MAX;
+      while (pre[cur] != -1) {
+        mn_flow = min(mn_flow, dis[pre[cur]][cur]);
+        cur = pre[cur];
+      }
+      ans += mn_flow;
+      cur = end;
+      while (pre[cur] != -1) {
+        dis[pre[cur]][cur] -= mn_flow;
+        dis[cur][pre[cur]] += mn_flow;
+        cur = pre[cur];
+      }
+    }
+  }
+  return ans;
+}
+
+int main() {
+  ll n, m;
+  cin >> n >> m;
+  vector<vector<ll>> dis(n + 1, vector<ll>(n + 1, 0));
+  unordered_map<ll, unordered_set<ll>> g;
+
+  for (int i = 0; i < m; i++) {
+    ll a, b, c;
+    cin >> a >> b >> c;
+    dis[a][b] += c;
+    g[a].insert(b);
+    g[b].insert(a);
+  }
+
+  cout << Dinic(g, dis, 1, n) << endl;
 }
